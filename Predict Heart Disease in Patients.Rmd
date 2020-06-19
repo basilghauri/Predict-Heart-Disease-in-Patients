@@ -1,0 +1,148 @@
+---
+title: "Predict Heart Disease in Patients Code"
+author: "Basil Ghauri"
+date: "6/16/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(ggplot2)
+library(caTools)
+library(class)
+library(gmodels)
+library(caret)
+library(fastDummies)
+```
+
+
+
+```{r}
+# load data into R
+data=read.csv("heart.csv")
+head(data)
+```
+
+```{r}
+# number of unique values of each variable.
+rapply(data,function(x)length(unique(x)))
+```
+
+```{r}
+#making histograms of all variables in the data.
+ggplot(gather(data),aes(value))+
+  geom_histogram(bins=10)+
+  facet_wrap(~key,scales = "free_x")
+```
+
+```{r}
+# making dummy variables of variables with factors.
+data1=dummy_cols(data,select_columns = c("ca","cp","exang","fbs","restecg","sex","slope","thal"))
+
+#removing original columns
+data1=data1%>%
+  select(-ca,-cp,-exang,-fbs,-restecg,-sex,-slope,-thal)
+
+# data after dummy variables.
+head(data1)
+```
+
+```{r}
+# normalize the remaining variables
+data1_norm=data1%>%
+  mutate_at(1:5,funs((.-min(.))/max(.-min(.))))
+head(data1_norm)
+
+```
+
+
+# KNN Model
+
+```{r}
+#checking how many people have heart disease and how many dont
+table(data1_norm$target)
+```
+
+## Splitting in Train and Test Datasets
+
+```{r}
+set.seed(123)
+samp_size=floor(0.75*nrow(data1_norm))
+
+samp_ind=sample(seq_len(nrow(data1_norm)),size = samp_size)
+
+```
+
+
+
+```{r}
+#making train and test dataset by dividing data into 75% for train and 25% for test dataset.
+data_train=data1_norm[samp_ind,-6]
+data_test=data1_norm[-samp_ind,-6]
+```
+
+```{r}
+#extracting the dependent variables and splitting it into train and test datasets.
+data_train_labels=data1_norm[samp_ind,6]
+data_test_labels=data1_norm[-samp_ind,6]
+```
+
+```{r}
+# Knn Model
+data_test_pred=knn(train = data_train,test = data_test,cl=data_train_labels,k=17)
+```
+
+```{r}
+# checking accuracy
+CrossTable(x=data_test_labels,y=data_test_pred,prop.chisq = FALSE)
+
+```
+
+```{r}
+confusionMatrix(table(data_test_labels,data_test_pred))
+```
+
+# Multiple Logistic Regression Model
+
+## Setting up train and test dataset.
+
+
+```{r}
+set.seed(123)
+samp_size2=floor(0.75*nrow(data1))
+
+samp_ind2=sample(seq_len(nrow(data1_norm)),size = samp_size2)
+
+data_train2=data1[samp_ind2,]
+data_test2= data1[-samp_ind2,-6]
+
+data_test2_label=data1[-samp_ind2,6]
+
+```
+
+
+```{r}
+#MLR Model.
+model_glm=glm(target~.,data = data_train2,family = binomial)
+summary(model_glm)
+```
+
+
+```{r}
+# predicting for test dataset.
+data_test2$prediction=predict(model_glm,newdata = data_test2,type = "response")
+
+data_test2$prediction=ifelse(data_test2$prediction>0.5,1,0)
+
+
+```
+
+```{r}
+confusionMatrix(table(data_test2_label,data_test2$prediction))
+```
+
+# Conclusion
+As shown above from the two Machine Learning Models applied the KNN (Nearest Neighbour) Model was better then Logisitic Regression because its accuracy was approximately 4% more.
